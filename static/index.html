@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>江苏省考岗位智能匹配系统</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+  <style>
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideInRight { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+    @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @keyframes cardEntrance {
+      0% { opacity: 0; transform: translateY(24px) scale(.94); filter: blur(4px); }
+      60% { opacity: 1; filter: blur(0); }
+      100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+    @keyframes statsEntrance {
+      0% { opacity: 0; transform: translateY(-10px) scale(.95); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    /* GPU acceleration for smoother animations */
+    .result-card, .glass-loader-orb, .glass-loader-ring, .glass-loader-core,
+    .header::before, .btn-flash::before, .glass-empty-orb, .glass-empty-orb-bg,
+    .glass-empty-orb-icon, .glass-empty-orb-ring, .stats-bar {
+      will-change: transform, opacity;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    html {
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #e8eaf6 0%, #f3e5f5 25%, #e3f2fd 50%, #e8f5e9 75%, #fff8e1 100%);
+      background-attachment: fixed;
+      color: #333;
+      min-height: 100vh;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: none;
+    }
+    /* Smooth scroll for all scrollable areas */
+    * {
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+
+
+    @property --border-angle {
+      syntax: "<angle>";
+      initial-value: 0deg;
+      inherits: false;
+    }
+    @keyframes border-flow { to { --border-angle: 360deg; } }
+    .header {
+      background: rgba(255,255,255,.55);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(255,255,255,.6);
+      border-radius: 20px;
+      color: #1a237e;
+      padding: 22px 28px;
+      margin-bottom: 20px;
+      position: relative;
+      z-index: 0;
+      box-shadow: 0 8px 32px rgba(26,35,126,.06), inset 0 1px 0 rgba(255,255,255,.5);
+      animation: fadeInUp .5s cubic-bezier(.4,0,.2,1);
+    }
+    .header::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: 22px;
+      padding: 2px;
+      background: conic-gradient(from var(--border-angle), #1565c0, #6a1b9a, #1a237e, #4a148c, #1565c0);
+      animation: border-flow 4s linear infinite;
+      z-index: -1;
+      filter: blur(2px);
+      opacity: .85;
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+    }
+    .header h1 { font-size: 22px; margin-bottom: 4px; letter-spacing: .5px; color: #1a237e; font-weight: 700; }
+    .header p { font-size: 13px; color: #3949ab; opacity: .85; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; animation: fadeInUp .5s cubic-bezier(.4,0,.2,1); }
+
+    .filter-card {
+      background: rgba(255,255,255,.55);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(255,255,255,.6);
+      border-radius: 20px;
+      padding: 22px 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 32px rgba(26,35,126,.06), inset 0 1px 0 rgba(255,255,255,.5);
+      animation: fadeInUp .5s cubic-bezier(.4,0,.2,1);
+    }
+    .filter-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; align-items: flex-end; }
+    .filter-item { flex: 1; min-width: 180px; }
+    .filter-item label { display: block; font-size: 12px; color: #666; margin-bottom: 5px; font-weight: 500; }
+
+    .stats-bar {
+      display: flex; gap: 24px; margin: 16px 0; padding: 14px 24px;
+      background: rgba(232,234,246,.5);
+      backdrop-filter: blur(16px) saturate(160%);
+      -webkit-backdrop-filter: blur(16px) saturate(160%);
+      border: 1px solid rgba(255,255,255,.4);
+      border-radius: 16px;
+      font-size: 14px;
+      box-shadow: 0 4px 16px rgba(26,35,126,.04);
+      animation: statsEntrance .5s cubic-bezier(.22,1,.36,1) .3s backwards;
+    }
+    .stats-bar span { color: #1a237e; font-weight: 700; font-size: 15px; }
+
+    .result-card {
+      background: rgba(255,255,255,.6);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255,255,255,.55);
+      border-radius: 18px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      box-shadow: 0 4px 20px rgba(26,35,126,.05), inset 0 1px 0 rgba(255,255,255,.4);
+      transition: transform .35s cubic-bezier(.25,.46,.45,.94), box-shadow .35s cubic-bezier(.25,.46,.45,.94), background .35s cubic-bezier(.25,.46,.45,.94), border-color .35s ease;
+      cursor: pointer;
+      animation: cardEntrance .6s cubic-bezier(.22,1,.36,1) backwards;
+    }
+    .result-card:hover {
+      background: rgba(255,255,255,.75);
+      box-shadow: 0 12px 40px rgba(26,35,126,.12), inset 0 1px 0 rgba(255,255,255,.6);
+      transform: translateY(-3px);
+      border-color: rgba(26,35,126,.15);
+    }
+    .result-card:active { transform: translateY(-1px) scale(.998); }
+
+.result-card:nth-child(1) { animation-delay: .1s; }
+.result-card:nth-child(2) { animation-delay: .16s; }
+.result-card:nth-child(3) { animation-delay: .22s; }
+.result-card:nth-child(4) { animation-delay: .28s; }
+.result-card:nth-child(5) { animation-delay: .34s; }
+.result-card:nth-child(6) { animation-delay: .4s; }
+.result-card:nth-child(7) { animation-delay: .46s; }
+.result-card:nth-child(8) { animation-delay: .52s; }
+.result-card:nth-child(9) { animation-delay: .58s; }
+.result-card:nth-child(10) { animation-delay: .64s; }
+.result-card:nth-child(n+11) { animation-delay: .7s; }
+
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .card-title { font-size: 15px; font-weight: 600; color: #1a237e; margin-bottom: 5px; transition: color .25s; }
+    .result-card:hover .card-title { color: #283593; }
+    .card-meta { font-size: 12px; color: #666; display: flex; gap: 12px; flex-wrap: wrap; }
+    .card-meta .tag {
+      background: rgba(227,242,253,.7);
+      color: #1565c0;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      border: 1px solid rgba(21,101,192,.12);
+      transition: all .25s;
+    }
+    .result-card:hover .tag { background: rgba(227,242,253,.95); }
+
+    .card-hist {
+      margin-top: 10px; padding: 10px 14px;
+      background: rgba(255,243,224,.6);
+      border: 1px solid rgba(230,81,0,.1);
+      border-radius: 12px;
+      font-size: 12px; color: #e65100;
+      display: flex; gap: 16px; align-items: center;
+      transition: all .25s;
+    }
+    .result-card:hover .card-hist { background: rgba(255,243,224,.85); }
+    .card-hist.no-data {
+      background: rgba(245,245,245,.5);
+      border-color: rgba(0,0,0,.05);
+      color: #aaa;
+    }
+    .card-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+    .detail-modal { padding: 0; border-radius: 20px; overflow: hidden; }
+    .detail-section {
+      margin-bottom: 22px;
+      background: rgba(255,255,255,.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,.4);
+      border-radius: 16px;
+      padding: 18px 20px;
+      box-shadow: 0 2px 12px rgba(26,35,126,.04);
+    }
+    .detail-section h3 {
+      font-size: 16px; color: #1a237e; margin-bottom: 12px;
+      border-bottom: 2px solid rgba(26,35,126,.12);
+      padding-bottom: 8px;
+    }
+    .detail-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+    .detail-table th, .detail-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(224,224,224,.6);
+      text-align: center;
+      transition: background .2s;
+    }
+    .detail-table th {
+      background: rgba(245,247,250,.7);
+      font-weight: 600;
+      border-top: 1px solid rgba(224,224,224,.6);
+    }
+    .detail-table th:first-child { border-radius: 10px 0 0 0; }
+    .detail-table th:last-child { border-radius: 0 10px 0 0; }
+    .detail-table tr:last-child td:first-child { border-radius: 0 0 0 10px; }
+    .detail-table tr:last-child td:last-child { border-radius: 0 0 10px 0; }
+    .detail-table tr:hover td { background: rgba(26,35,126,.03); }
+
+    .chart-container { width: 100%; height: 300px; border-radius: 12px; }
+
+    .pagination { display: flex; justify-content: center; margin: 24px 0; }
+    /* === Liquid Glass Loading === */
+    @keyframes glassSpin { to { transform: rotate(360deg); } }
+    @keyframes glassSpinReverse { to { transform: rotate(-360deg); } }
+    @keyframes glassPulse {
+      0%, 100% { opacity: .5; transform: scale(.85); }
+      50% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes glassShimmerText {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+    @keyframes glassBarWave {
+      0%, 100% { transform: scaleY(.3); opacity: .4; }
+      50% { transform: scaleY(1); opacity: 1; }
+    }
+
+    .glass-loader {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 56px 20px;
+      animation: fadeIn .4s cubic-bezier(.4,0,.2,1);
+    }
+    .glass-loader-orb {
+      position: relative;
+      width: 72px; height: 72px;
+      margin-bottom: 22px;
+    }
+    .glass-loader-ring {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+    }
+    .glass-loader-ring--outer {
+      background: conic-gradient(from 0deg, transparent 0%, #81d4fa 25%, #b39ddb 50%, #e1bee7 75%, transparent 100%);
+      -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%);
+      mask: radial-gradient(circle, transparent 58%, #000 60%);
+      animation: glassSpin 1.2s linear infinite;
+      filter: blur(1px);
+    }
+    .glass-loader-ring--inner {
+      inset: 12px;
+      background: conic-gradient(from 180deg, transparent 0%, #7986cb 30%, #1a237e 60%, transparent 100%);
+      -webkit-mask: radial-gradient(circle, transparent 52%, #000 55%);
+      mask: radial-gradient(circle, transparent 52%, #000 55%);
+      animation: glassSpinReverse 1.6s linear infinite;
+    }
+    .glass-loader-core {
+      position: absolute; inset: 26px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.7);
+      backdrop-filter: blur(8px) saturate(180%);
+      -webkit-backdrop-filter: blur(8px) saturate(180%);
+      box-shadow: 0 0 20px rgba(129,212,250,.4), inset 0 1px 3px rgba(255,255,255,.8);
+      animation: glassPulse 1.8s cubic-bezier(.4,0,.2,1) infinite;
+    }
+    .glass-loader-text {
+      font-size: 14px; font-weight: 500; letter-spacing: 1px;
+      background: linear-gradient(90deg, #1a237e 0%, #7986cb 25%, #81d4fa 50%, #7986cb 75%, #1a237e 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: glassShimmerText 2.5s linear infinite;
+    }
+    .glass-loader-bars {
+      display: flex; gap: 4px; margin-top: 14px; height: 16px; align-items: flex-end;
+    }
+    .glass-loader-bars span {
+      display: block; width: 3px; height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(180deg, #81d4fa, #b39ddb);
+      transform-origin: bottom;
+      animation: glassBarWave 1s cubic-bezier(.4,0,.2,1) infinite;
+    }
+    .glass-loader-bars span:nth-child(1) { animation-delay: 0s; }
+    .glass-loader-bars span:nth-child(2) { animation-delay: .08s; }
+    .glass-loader-bars span:nth-child(3) { animation-delay: .16s; }
+    .glass-loader-bars span:nth-child(4) { animation-delay: .24s; }
+    .glass-loader-bars span:nth-child(5) { animation-delay: .32s; }
+
+    .empty { text-align: center; padding: 60px 20px; color: #aaa; animation: fadeIn .5s cubic-bezier(.4,0,.2,1); }
+    .empty .icon { font-size: 48px; margin-bottom: 12px; animation: float 3s cubic-bezier(.4,0,.2,1) infinite; }
+
+    /* === Liquid Glass Empty State === */
+    @keyframes glassEmptyFloat {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-6px) scale(1.03); }
+    }
+    @keyframes glassEmptyGlow {
+      0%, 100% { opacity: .3; transform: scale(.9); }
+      50% { opacity: .7; transform: scale(1.1); }
+    }
+    @keyframes glassEmptyRing {
+      0% { transform: scale(.8); opacity: 0; }
+      50% { opacity: .5; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+    .glass-empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 48px 24px;
+      margin: 20px 0;
+      background: rgba(255,255,255,.5);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255,255,255,.55);
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(26,35,126,.06), inset 0 1px 0 rgba(255,255,255,.5);
+      animation: fadeInUp .5s cubic-bezier(.4,0,.2,1);
+    }
+    .glass-empty-orb {
+      position: relative;
+      width: 64px; height: 64px;
+      margin-bottom: 20px;
+    }
+    .glass-empty-orb-bg {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(129,212,250,.4), rgba(179,77,221,.3));
+      animation: glassEmptyGlow 3s cubic-bezier(.4,0,.2,1) infinite;
+    }
+    .glass-empty-orb-ring {
+      position: absolute; inset: -8px;
+      border-radius: 50%;
+      border: 2px solid rgba(129,212,250,.3);
+      animation: glassEmptyRing 3s cubic-bezier(.16,1,.3,1) infinite;
+    }
+    .glass-empty-orb-ring:nth-child(2) { animation-delay: 1s; }
+    .glass-empty-orb-ring:nth-child(3) { animation-delay: 2s; }
+    .glass-empty-orb-icon {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+      background: rgba(255,255,255,.7);
+      backdrop-filter: blur(8px) saturate(180%);
+      -webkit-backdrop-filter: blur(8px) saturate(180%);
+      border-radius: 50%;
+      box-shadow: 0 4px 16px rgba(129,212,250,.25), inset 0 1px 3px rgba(255,255,255,.8);
+      animation: glassEmptyFloat 3.5s cubic-bezier(.4,0,.2,1) infinite;
+    }
+    .glass-empty-title {
+      font-size: 16px; font-weight: 600;
+      background: linear-gradient(90deg, #1a237e 0%, #7986cb 50%, #1a237e 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: glassShimmerText 3s linear infinite;
+      margin-bottom: 6px;
+    }
+    .glass-empty-hint {
+      font-size: 13px; color: #999;
+    }
+
+    .fav-badge { background: #f44336; color: white; border-radius: 50%; padding: 0 6px; font-size: 11px; margin-left: 6px; }
+
+    .el-button { border-radius: 12px !important; transition: transform .3s cubic-bezier(.25,.46,.45,.94) !important, box-shadow .3s cubic-bezier(.25,.46,.45,.94) !important, background .3s ease !important; }
+    .el-button:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(26,35,126,.15); }
+    .el-button:active { transform: translateY(0) scale(.97); }
+    .el-button--primary { background: linear-gradient(135deg, #1a237e, #283593) !important; border: none !important; box-shadow: 0 2px 12px rgba(26,35,126,.2) !important; }
+    .el-button--primary:hover { background: linear-gradient(135deg, #283593, #3949ab) !important; box-shadow: 0 6px 20px rgba(26,35,126,.3) !important; }
+
+    /* Button flash effect (replaces loading spinner) */
+    @keyframes btnColorFlash {
+      0% { background: linear-gradient(135deg, #1a237e, #283593) !important; box-shadow: 0 2px 12px rgba(26,35,126,.2) !important; }
+      20% { background: linear-gradient(135deg, #3949ab, #5c6bc0) !important; box-shadow: 0 4px 20px rgba(92,107,192,.5) !important; }
+      40% { background: linear-gradient(135deg, #7986cb, #9fa8da) !important; box-shadow: 0 6px 24px rgba(121,134,203,.5) !important; }
+      60% { background: linear-gradient(135deg, #5c6bc0, #7986cb) !important; box-shadow: 0 4px 18px rgba(92,107,192,.4) !important; }
+      100% { background: linear-gradient(135deg, #1a237e, #283593) !important; box-shadow: 0 2px 12px rgba(26,35,126,.2) !important; }
+    }
+    .btn-flash { animation: btnColorFlash .6s ease; }
+
+    /* Button border flow effect (like header) - shown during loading */
+    .btn-flash {
+      position: relative;
+      z-index: 0;
+      isolation: isolate;
+    }
+    .btn-flash::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: 14px;
+      padding: 2px;
+      background: conic-gradient(from var(--border-angle), #81d4fa, #e1bee7, #ffffff, #b39ddb, #81d4fa);
+      animation: border-flow 3s linear infinite;
+      z-index: -1;
+      filter: blur(1.5px);
+      opacity: .9;
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+    }
+    .el-button:disabled, .el-button.is-disabled { opacity: .65 !important; cursor: not-allowed !important; transform: none !important; }
+    .el-button:disabled:hover { transform: none !important; box-shadow: 0 2px 12px rgba(26,35,126,.2) !important; }
+
+    .el-input__wrapper, .el-select .el-input__wrapper {
+      border-radius: 12px !important;
+      background: rgba(255,255,255,.7) !important;
+      box-shadow: 0 0 0 1px rgba(26,35,126,.1) inset !important;
+      transition: all .25s !important;
+    }
+        .el-input__wrapper:hover, .el-input__wrapper.is-focus {
+      box-shadow: 0 0 0 1.5px rgba(26,35,126,.25) inset !important;
+      background: rgba(255,255,255,.9) !important;
+    }
+    .el-textarea__inner { border-radius: 12px !important; }
+    .el-select__wrapper, .el-select .el-select__wrapper { border-radius: 12px !important; }
+    .el-select-dropdown__item { border-radius: 8px !important; margin: 2px 4px; transition: background .15s cubic-bezier(.4,0,.2,1), color .15s cubic-bezier(.4,0,.2,1) !important; }
+
+    /* Smooth select dropdown panel */
+    .el-select__popper, .el-popper.el-select__popper {
+      border-radius: 14px !important;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(26,35,126,.15) !important;
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      animation: dropdownSlide .28s cubic-bezier(.22,1,.36,1) !important;
+      will-change: transform, opacity;
+    }
+    @keyframes dropdownSlide {
+      0% { opacity: 0; transform: translateY(-10px) scaleY(.92); }
+      100% { opacity: 1; transform: translateY(0) scaleY(1); }
+    }
+    .el-select-dropdown { border-radius: 14px !important; padding: 4px !important; }
+    .el-select-dropdown__wrap { max-height: 280px !important; -webkit-overflow-scrolling: touch; }
+    .el-select-dropdown__item.hover, .el-select-dropdown__item:hover {
+      background: rgba(26,35,126,.06) !important;
+      color: #1a237e !important;
+    }
+    .el-select-dropdown__item.selected {
+      background: rgba(26,35,126,.08) !important;
+      color: #1a237e !important;
+      font-weight: 600;
+    }
+    .el-autocomplete-suggestion { border-radius: 12px !important; overflow: hidden; }
+    .el-autocomplete-suggestion__list { padding: 4px; }
+    .el-tag { border-radius: 8px !important; }
+    .el-pagination button, .el-pagination .el-pager li { border-radius: 8px !important; }
+
+    .el-dialog { border-radius: 24px !important; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.15) !important; }
+    .el-dialog__header { background: linear-gradient(135deg, rgba(26,35,126,.04), rgba(40,53,147,.04)); border-bottom: 1px solid rgba(26,35,126,.08); padding: 20px 28px 16px !important; }
+    .el-dialog__title { color: #1a237e; font-weight: 600; word-break: break-all; line-height: 1.5; }
+    .el-dialog__body { background: linear-gradient(180deg, rgba(245,247,250,.5), rgba(255,255,255,.3)); }
+
+    .el-pagination .el-pager li { border-radius: 8px !important; margin: 0 2px; transition: all .25s !important; }
+    .el-pagination .el-pager li:hover { background: rgba(26,35,126,.08) !important; color: #1a237e !important; }
+    .el-pagination .el-pager li.is-active { background: linear-gradient(135deg, #1a237e, #283593) !important; color: white !important; }
+
+    @media (max-width: 768px) {
+      .filter-item { min-width: 100%; }
+      .container { padding: 10px; }
+      .card-meta { flex-direction: column; gap: 4px; }
+      .stats-bar { flex-wrap: wrap; gap: 12px; }
+      .filter-card, .result-card { border-radius: 14px; }
+    }
+  </style>
+
+</head>
+<body>
+  <div id="app">
+    <div class="container">
+      <div class="header">
+        <h1>江苏省考岗位智能匹配系统</h1>
+        <p>输入专业、城市、学历等条件，智能筛选2027年可报岗位并查看历年报名数据</p>
+      </div>
+      <div class="filter-card">
+        <div class="filter-row">
+          <div class="filter-item" style="min-width:250px">
+            <label>专业（支持自动补全）</label>
+            <el-select v-model="filters.majors" multiple filterable remote :remote-method="remoteMajorSearch" :loading="majorLoading" collapse-tags collapse-tags-tooltip placeholder="如：法学、计算机、会计学" clearable style="width:100%" @change="onSearch">
+              <el-option v-for="m in majorOptions" :key="m.major_name" :label="m.major_name + (m.pos_count ? ' (' + m.pos_count + '岗)' : '')" :value="m.major_name"></el-option>
+            </el-select>
+          </div>
+          <div class="filter-item">
+            <label>报考城市</label>
+            <el-select v-model="filters.cities" multiple collapse-tags collapse-tags-tooltip placeholder="全部城市" style="width:100%">
+              <el-option v-for="c in cityOptions" :key="c" :label="c" :value="c"></el-option>
+            </el-select>
+          </div>
+          <div class="filter-item">
+            <label>学历</label>
+            <el-select v-model="filters.edu" style="width:100%">
+              <el-option label="不限" value="不限"></el-option>
+              <el-option label="高中（中专）" value="高中（中专）"></el-option>
+              <el-option label="本科" value="本科"></el-option>
+              <el-option label="硕士研究生" value="硕士研究生"></el-option>
+              <el-option label="博士研究生" value="博士研究生"></el-option>
+            </el-select>
+          </div>
+          <div class="filter-item">
+            <label>应届身份</label>
+            <el-select v-model="filters.fresh" style="width:100%">
+              <el-option label="不限" value="不限"></el-option>
+              <el-option label="应届" value="应届"></el-option>
+              <el-option label="非应届" value="非应届"></el-option>
+            </el-select>
+          </div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-item">
+            <label>政治面貌</label>
+            <el-select v-model="filters.party" style="width:100%">
+              <el-option label="不限" value="不限"></el-option>
+              <el-option label="党员" value="党员"></el-option>
+              <el-option label="非党员" value="非党员"></el-option>
+            </el-select>
+          </div>
+          <div class="filter-item">
+            <label>性别</label>
+            <el-select v-model="filters.gender" style="width:100%">
+              <el-option label="不限" value="不限"></el-option>
+              <el-option label="男" value="男"></el-option>
+              <el-option label="女" value="女"></el-option>
+            </el-select>
+          </div>
+          <div class="filter-item">
+            <label>考试类别</label>
+            <el-select v-model="filters.cats" style="width:100%">
+              <el-option label="不限" value="不限"></el-option>
+              <el-option label="A类" value="A"></el-option>
+              <el-option label="B类" value="B"></el-option>
+              <el-option label="C类" value="C"></el-option>
+            </el-select>
+          </div>
+          <div class="filter-item">
+            <label>关键词</label>
+            <el-input v-model="filters.keyword" placeholder="单位/职位名称" clearable @keyup.enter="onSearch"></el-input>
+          </div>
+          <div style="display:flex;gap:8px">
+            <el-button type="primary" @click="onSearch" :disabled="loading" :class="{'btn-flash': loading}">开始筛选</el-button>
+            <el-button @click="onReset">重置</el-button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="stats" class="stats-bar">
+        <div>共 <span>{{ stats.total }}</span> 个匹配岗位</div>
+        <div v-if="stats.avg_ratio">平均竞争比 <span>{{ stats.avg_ratio }}:1</span></div>
+        <div v-if="stats.avg_score">平均进面分 <span>{{ stats.avg_score }}</span></div>
+        <div v-if="stats.total_recruit">招考总人数 <span>{{ stats.total_recruit }}</span></div>
+        <div v-if="stats.with_history != null">有历年数据 <span>{{ stats.with_history }}</span></div>
+      </div>
+      <div v-if="loading" class="glass-loader">
+          <div class="glass-loader-orb">
+            <div class="glass-loader-ring glass-loader-ring--outer"></div>
+            <div class="glass-loader-ring glass-loader-ring--inner"></div>
+            <div class="glass-loader-core"></div>
+          </div>
+          <div class="glass-loader-text">正在筛选岗位</div>
+          <div class="glass-loader-bars"><span></span><span></span><span></span><span></span><span></span></div>
+        </div>
+      <div v-else-if="results.length === 0 && searched" class="glass-empty">
+          <div class="glass-empty-orb">
+            <div class="glass-empty-orb-ring"></div>
+            <div class="glass-empty-orb-ring"></div>
+            <div class="glass-empty-orb-ring"></div>
+            <div class="glass-empty-orb-bg"></div>
+            <div class="glass-empty-orb-icon">🔍</div>
+          </div>
+          <div class="glass-empty-title">未找到匹配的岗位</div>
+          <div class="glass-empty-hint">请尝试调整筛选条件或点击“重置”</div>
+        </div>
+      <div v-else>
+        <div v-for="(r, i) in results" :key="r.id" class="result-card" @click="showDetail(r.id)">
+          <div class="card-header">
+            <div style="flex:1">
+              <div class="card-title">{{ (page-1)*perPage + i + 1 }}. {{ r.unit_name }}  ——  {{ r.position_name }}</div>
+              <div class="card-meta">
+                <span class="tag">{{ r.city }}</span>
+                <span>{{ r.exam_category }}类</span>
+                <span>招{{ r.recruit_count }}人</span>
+                <span>{{ r.education_req }}</span>
+                <span v-if="r.major_count">专业: {{ r.major_count }}个</span>
+              </div>
+              <div style="font-size:12px;color:#888;margin-top:4px">{{ r.major_req_short }}</div>
+              <div v-if="r.other_req" style="font-size:12px;color:#999;margin-top:2px">{{ r.other_req.substring(0, 80) }}{{ r.other_req.length > 80 ? "..." : "" }}</div>
+            </div>
+            <div style="text-align:right;min-width:160px">
+              <div v-if="r.hist_summary" class="card-hist">
+                <div>{{ r.hist_summary.year }}年</div>
+                <div>报名 {{ r.hist_summary.applicants }}人</div>
+                <div v-if="r.hist_summary.competition_ratio">竞争比 {{ r.hist_summary.competition_ratio }}:1</div>
+                <div v-if="r.hist_summary.score_min">进面分 {{ r.hist_summary.score_min }}</div>
+              </div>
+              <div v-else class="card-hist no-data">无历年数据</div>
+              <div class="card-actions" @click.stop>
+                <el-button size="small" @click="showDetail(r.id)">查看详情</el-button>
+                <el-button size="small" :type="isFav(r.id) ? 'warning' : 'default'" @click="toggleFav(r.id)">
+                  {{ isFav(r.id) ? "★已收藏" : "☆收藏" }}
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="pagination" v-if="stats && stats.total > perPage">
+          <el-pagination v-model:current-page="page" :page-size="perPage" :total="stats.total" layout="prev, pager, next" @current-change="onPageChange"></el-pagination>
+        </div>
+      </div>
+    </div>
+
+    <el-dialog v-model="detailVisible" :title="detailTitle" width="90%" top="3vh" class="detail-modal">
+      <div v-if="detail" style="max-height:80vh;overflow-y:auto;padding:0 18px">
+        <div class="detail-section">
+          <h3>岗位基本信息</h3>
+          <table class="detail-table">
+            <tr><td style="width:120px;background:#f5f5f5">单位名称</td><td>{{ detail.position.unit_name }}</td><td style="width:120px;background:#f5f5f5">职位名称</td><td>{{ detail.position.position_name }}</td></tr>
+            <tr><td style="background:#f5f5f5">地区</td><td>{{ detail.position.city }}</td><td style="background:#f5f5f5">考试类别</td><td>{{ detail.position.exam_category }}类</td></tr>
+            <tr><td style="background:#f5f5f5">招考人数</td><td>{{ detail.position.recruit_count }}</td><td style="background:#f5f5f5">开考比例</td><td>{{ detail.position.open_ratio }}</td></tr>
+            <tr><td style="background:#f5f5f5">学历要求</td><td>{{ detail.position.education_req }}</td><td style="background:#f5f5f5">隶属关系</td><td>{{ detail.position.affiliation }}</td></tr>
+            <tr><td style="background:#f5f5f5">专业要求</td><td colspan="3">{{ detail.position.major_req || "不限" }}</td></tr>
+            <tr><td style="background:#f5f5f5">其他要求</td><td colspan="3">{{ detail.position.other_req || "无" }}</td></tr>
+            <tr><td style="background:#f5f5f5">职位简介</td><td colspan="3">{{ detail.position.position_desc || "无" }}</td></tr>
+          </table>
+        </div>
+        <div class="detail-section" v-if="detail.history.length > 0">
+          <h3>历年数据趋势</h3>
+          <div id="ratioChart" class="chart-container"></div>
+          <div id="scoreChart" class="chart-container" style="margin-top:16px"></div>
+        </div>
+        <div class="detail-section" v-if="detail.history.length > 0">
+          <h3>历年数据明细</h3>
+          <table class="detail-table">
+            <tr><th>年份</th><th>报名人数</th><th>招考人数</th><th>竞争比</th><th>进面最高分</th><th>进面最低分</th><th>匹配级别</th></tr>
+            <tr v-for="h in detail.history" :key="h.year">
+              <td>{{ h.year }}</td><td>{{ h.applicants_count || "-" }}</td><td>{{ h.recruit_count || "-" }}</td>
+              <td>{{ h.competition_ratio ? h.competition_ratio + ":1" : "-" }}</td>
+              <td>{{ h.score_max || "-" }}</td><td>{{ h.score_min || "-" }}</td><td>{{ h.match_level }}</td>
+            </tr>
+          </table>
+        </div>
+        <div class="detail-section" v-if="detail.same_unit_positions.length > 0">
+          <h3>同单位其他岗位 ({{ detail.same_unit_positions.length }}个)</h3>
+          <table class="detail-table">
+            <tr><th>职位名称</th><th>招考人数</th><th>学历</th><th>类别</th></tr>
+            <tr v-for="s in detail.same_unit_positions" :key="s.id" style="cursor:pointer" @click="showDetail(s.id)">
+              <td>{{ s.position_name }}</td><td>{{ s.recruit_count }}</td><td>{{ s.education_req }}</td><td>{{ s.exam_category }}</td>
+            </tr>
+          </table>
+        </div>
+        <div style="text-align:center;padding:16px">
+          <el-button :type="isFav(detail.position.id) ? 'warning' : 'primary'" @click="toggleFav(detail.position.id)">
+            {{ isFav(detail.position.id) ? "★ 取消收藏" : "☆ 收藏此岗位" }}
+          </el-button>
+        </div>
+      </div>
+    </el-dialog>
+
+    <el-dialog v-model="favVisible" title="我的收藏" width="80%">
+      <div v-if="favorites.length === 0" class="glass-empty">
+          <div class="glass-empty-orb">
+            <div class="glass-empty-orb-ring"></div>
+            <div class="glass-empty-orb-ring"></div>
+            <div class="glass-empty-orb-ring"></div>
+            <div class="glass-empty-orb-bg"></div>
+            <div class="glass-empty-orb-icon">☆</div>
+          </div>
+          <div class="glass-empty-title">还没有收藏的岗位</div>
+          <div class="glass-empty-hint">点击岗位右上角的♥ 即可收藏</div>
+        </div>
+      <div v-for="f in favorites" :key="f.fid" class="result-card" style="position:relative" @click="showDetail(f.id); favVisible = false">
+        <el-button size="small" type="danger" circle style="position:absolute;top:12px;right:12px;z-index:10" @click.stop="toggleFav(f.id)">✕</el-button>
+        <div class="card-title">{{ f.unit_name }}  ——  {{ f.position_name }}</div>
+        <div class="card-meta"><span class="tag">{{ f.city }}</span><span>{{ f.exam_category }}类</span><span>招{{ f.recruit_count }}人</span><span>{{ f.education_req }}</span></div>
+        <div style="font-size:12px;color:#999;margin-top:4px">收藏于 {{ f.created_at }}</div>
+      </div>
+    </el-dialog>
+
+    <div style="position:fixed;bottom:24px;right:24px;z-index:100">
+      <el-badge :value="favorites.length" :hidden="favorites.length === 0">
+        <el-button type="primary" size="large" circle @click="favVisible = true">☆</el-button>
+      </el-badge>
+    </div>
+  </div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/echarts@5/dist/echarts.min.js"></script>
+<script>
+const { createApp, ref, reactive, onMounted, nextTick, computed } = Vue;
+
+const app = createApp({
+  setup() {
+    const filters = reactive({ majors: [], cities: [], edu: "不限", fresh: "不限", party: "不限", gender: "不限", cats: "不限", keyword: "" });
+    const results = ref([]);
+    const stats = ref(null);
+    const loading = ref(false);
+    const searched = ref(false);
+    const page = ref(1);
+    const perPage = ref(20);
+    const cityOptions = ref([]);
+    const detail = ref(null);
+    const detailVisible = ref(false);
+    const favorites = ref([]);
+    const favVisible = ref(false);
+    const favIds = ref(new Set());
+    const majorOptions = ref([]);
+    const majorLoading = ref(false);
+    const detailTitle = ref("");
+
+    const apiBase = "";
+
+    async function fetchJson(url) {
+      const res = await fetch(url);
+      return res.json();
+    }
+
+    async function loadStats() {
+      const data = await fetchJson(apiBase + "/api/stats");
+      cityOptions.value = data.cities || [];
+    }
+
+    let searchToken = 0;
+
+    async function onSearch() {
+      if (loading.value) return;
+      page.value = 1;
+      await doSearch();
+    }
+
+    async function doSearch() {
+      const token = ++searchToken;
+      loading.value = true;
+      searched.value = true;
+      try {
+        const params = new URLSearchParams();
+        filters.majors.forEach(m => params.append("majors[]", m));
+        filters.cities.forEach(c => params.append("cities[]", c));
+        if (filters.edu && filters.edu !== "不限") params.append("edu", filters.edu);
+        if (filters.fresh && filters.fresh !== "不限") params.append("fresh", filters.fresh);
+        if (filters.party && filters.party !== "不限") params.append("party", filters.party);
+        if (filters.gender && filters.gender !== "不限") params.append("gender", filters.gender);
+        if (filters.cats && filters.cats !== "不限") params.append("cats[]", filters.cats);
+        if (filters.keyword) params.append("keyword", filters.keyword);
+        params.append("page", page.value);
+        params.append("per_page", perPage.value);
+        const data = await fetchJson(apiBase + "/api/search?" + params.toString());
+        if (token !== searchToken) return;
+        results.value = data.results || [];
+        stats.value = data.stats || null;
+      } catch(e) {
+        if (token !== searchToken) return;
+        console.error("Search error:", e);
+        results.value = [];
+        stats.value = null;
+      }
+      if (token === searchToken) loading.value = false;
+    }
+
+    async function onPageChange(p) {
+      page.value = p;
+      await doSearch();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function onReset() {
+      filters.majors = []; filters.cities = []; filters.edu = "不限"; filters.fresh = "不限";
+      filters.party = "不限"; filters.gender = "不限"; filters.cats = "不限"; filters.keyword = "";
+      page.value = 1;
+      results.value = [];
+      stats.value = null;
+      searched.value = false;
+    }
+
+    async function remoteMajorSearch(query) {
+      if (!query) { majorOptions.value = []; return; }
+      majorLoading.value = true;
+      try {
+        const data = await fetchJson(apiBase + "/api/major/suggest?q=" + encodeURIComponent(query));
+        majorOptions.value = data.suggestions || [];
+      } catch(e) { majorOptions.value = []; }
+      majorLoading.value = false;
+    }
+
+    async function showDetail(pid) {
+      try {
+        const data = await fetchJson(apiBase + "/api/detail/" + pid);
+        detail.value = data;
+        detailTitle.value = data.position.unit_name + "  ——  " + data.position.position_name;
+        detailVisible.value = true;
+        if (data.history.length > 0) {
+          await nextTick();
+          drawCharts(data.history);
+        }
+      } catch(e) { console.error("Detail error:", e); }
+    }
+
+    function drawCharts(history) {
+      const years = history.map(h => h.year).reverse();
+      const ratios = history.map(h => h.competition_ratio).reverse();
+      const scores_min = history.map(h => h.score_min).reverse();
+      const scores_max = history.map(h => h.score_max).reverse();
+      const applicants = history.map(h => h.applicants_count).reverse();
+
+      const rc = document.getElementById("ratioChart");
+      if (rc) {
+        const chart = echarts.init(rc);
+        chart.setOption({
+          title: { text: "竞争比趋势（报名人数/招考人数）", left: "center", textStyle: { fontSize: 14 } },
+          tooltip: { trigger: "axis" },
+          xAxis: { type: "category", data: years },
+          yAxis: { type: "value", name: "竞争比" },
+          series: [{ name: "竞争比", type: "line", data: ratios, smooth: true, itemStyle: { color: "#1a237e" }, areaStyle: { opacity: 0.1 } }],
+          grid: { left: "8%", right: "5%", bottom: "10%", top: "18%" }
+        });
+      }
+
+      const sc = document.getElementById("scoreChart");
+      if (sc) {
+        const chart2 = echarts.init(sc);
+        var allMins = scores_min.filter(function(v) { return v != null && v !== undefined; });
+        var allMaxs = scores_max.filter(function(v) { return v != null && v !== undefined; });
+        var yMin = allMins.length ? Math.floor(Math.min.apply(null, allMins) - 5) : 0;
+        var yMax = allMaxs.length ? Math.ceil(Math.max.apply(null, allMaxs) + 5) : 200;
+        var yInterval = (yMax - yMin) / 5;
+        chart2.setOption({
+          title: { text: "进面分数线趋势", left: "center", textStyle: { fontSize: 14 } },
+          tooltip: { trigger: "axis" },
+          legend: { data: ["最高分", "最低分"], bottom: 0 },
+          xAxis: { type: "category", data: years },
+          yAxis: { type: "value", name: "分数", min: yMin, max: yMax, interval: yInterval, splitNumber: 5 },
+          series: [
+            { name: "最高分", type: "line", data: scores_max, smooth: true, itemStyle: { color: "#e53935" } },
+            { name: "最低分", type: "line", data: scores_min, smooth: true, itemStyle: { color: "#43a047" } },
+          ],
+          grid: { left: "8%", right: "5%", bottom: "15%", top: "18%" }
+        });
+      }
+    }
+
+    async function loadFavorites() {
+      try {
+        const data = await fetchJson(apiBase + "/api/favorites");
+        favorites.value = data.favorites || [];
+        favIds.value = new Set(favorites.value.map(f => f.id));
+      } catch(e) { console.error("Fav load error:", e); }
+    }
+
+    function isFav(pid) { return favIds.value.has(pid); }
+
+    async function toggleFav(pid) {
+      if (isFav(pid)) {
+        const f = favorites.value.find(f => f.id === pid);
+        if (f) {
+          await fetch(apiBase + "/api/favorites?id=" + f.fid, { method: "DELETE" });
+          favIds.value.delete(pid);
+          favorites.value = favorites.value.filter(f => f.id !== pid);
+        }
+      } else {
+        await fetch(apiBase + "/api/favorites", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position_id: pid })
+        });
+        favIds.value.add(pid);
+        await loadFavorites();
+      }
+    }
+
+    onMounted(() => { loadStats(); loadFavorites(); doSearch(); });
+
+    return { filters, results, stats, loading, searched, page, perPage, cityOptions, majorOptions, majorLoading,
+      detail, detailVisible, detailTitle, favorites, favVisible, favIds,
+      onSearch, onPageChange, onReset, remoteMajorSearch, showDetail, isFav, toggleFav };
+  }
+});
+app.use(ElementPlus);
+app.mount("#app");
+</script>
+</body>
+</html>
+
