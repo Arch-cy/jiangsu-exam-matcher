@@ -2,7 +2,7 @@
 import os, re, sqlite3, xlrd, openpyxl
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DDIR = os.path.join(os.path.expanduser("~"), "Desktop", "江苏省省考岗位表")
+DDIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 F27 = os.path.join(DDIR, "27江苏省考职位合并表(1).xls")
 FH = os.path.join(DDIR, "2019-2026江苏省考历年职位表_报考情况_入面分.xlsx")
 DB = os.path.join(BASE, "backend", "jiangsu_exam.db")

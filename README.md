@@ -21,29 +21,37 @@
 
 ### 安装
 
-pip install flask flask-cors xlrd openpyxl
+pip3 install -r requirements.txt
 
 ### 启动
 
-1. 将数据文件放入桌面"江苏省省考岗位表"目录
-2. 运行启动脚本（首次运行会自动导入数据）：
+数据库已内置，下载后直接运行：
 
 ./run.sh
 
+脚本会自动检查并安装依赖、启动服务。
+
 或手动执行：
 
-python3 etl/run_etl.py    # 导入数据到 SQLite
-python3 backend/app.py    # 启动 Flask 服务
+pip3 install -r requirements.txt    # 安装依赖
+python3 backend/app.py              # 启动 Flask 服务
 
-3. 浏览器打开 http://localhost:5000
+浏览器打开 http://localhost:5000
+
+如需从 Excel 重建数据库：
+
+python3 etl/run_etl.py
 
 ## 项目结构
 
 - README.md — 项目说明
 - run.sh — 一键启动脚本
+- requirements.txt — Python 依赖
+- schema.sql — 数据库表结构（DDL）
+- data/ — 原始 Excel 数据文件
 - etl/run_etl.py — ETL：读取 Excel，清洗数据，写入 SQLite
 - backend/app.py — Flask 后端（REST API + 静态文件服务）
-- backend/jiangsu_exam.db — SQLite 数据库（由 ETL 生成，不纳入版本控制）
+- backend/jiangsu_exam.db — SQLite 数据库（已内置30MB，开箱即用）
 - static/index.html — 前端 SPA（Vue 3 + Element Plus + ECharts）
 
 ## 数据规模
